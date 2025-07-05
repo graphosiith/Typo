@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GRAPHOS STUDIO</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background-color: white;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+    }
+    #link {
+      position: absolute;
+      bottom: 10px;
+      right: 15px;
+      background-color: #E0FD2C;
+      padding: 6px 10px;
+      text-decoration: none;
+      font-weight: bold;
+      color: #091405;
+      font-family: "Space Grotesk", sans-serif;
+    }
+    #orb {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      top: 55%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle at center, #1A73E8, #E0FD2C);
+      box-shadow: 0 0 10px #1A73E8;
+      opacity: 0;
+      pointer-events: none;
+      animation: floatUp 2.5s ease-out forwards;
+    }
+    @keyframes floatUp {
+      0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0;
+      }
+      30% {
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, -150%) scale(1);
+        opacity: 0;
+      }
+    }
+    #hoverMsg {
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 16px;
+      background: rgba(255, 255, 255, 0.85);
+      padding: 6px 12px;
+      border-radius: 20px;
+      color: #091405;
+      font-weight: bold;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<a id="link" href="https://graphosiith.com" target="_self">Graphosiith.com</a>
+<div id="orb"></div>
+<div id="hoverMsg">Click to explore</div>
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+ctx.imageSmoothingEnabled = true;
+const orb = document.getElementById("orb");
+const hoverMsg = document.getElementById("hoverMsg");
+let particles = [];
+let letterBoxes = [];
+let mouse = { x: null, y: null };
+let isHovering = false;
+let msgInterval;
+const hoverRadius = 100;
+const isMobile = window.innerWidth <= 768;
+canvas.width = window.innerWidth;
+canvas.height = isMobile ? 400 : 500;
+const fontSize = isMobile ? 60 : 90;
+const lines = isMobile ? ["GRAPHOS", "STUDIO"] : ["GRAPHOS STUDIO"];
+const lineGap = fontSize * 1.4;
+ctx.font = `bold ${fontSize}px 'Space Grotesk'`;
+ctx.textAlign = "center";
+ctx.textBaseline = "middle";
+ctx.fillStyle = "#091405";
+function drawTextAndPrepareParticles() {
+  letterBoxes = [];
+  particles = [];
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const startY = canvas.height / 2 - ((lines.length - 1) * lineGap) / 2;
+  lines.forEach((line, lineIndex) => {
+    const y = startY + lineIndex * lineGap;
+    let startX = canvas.width / 2 - ctx.measureText(line).width / 2;
+    for (let i = 0; i < line.length; i++) {
+      const letter = line[i];
+      const width = ctx.measureText(letter).width;
+      letterBoxes.push({
+        left: startX,
+        right: startX + width,
+        top: y - fontSize / 2,
+        bottom: y + fontSize / 2,
+        char: letter
+      });
+      startX += width;
+    }
+    ctx.fillText(line, canvas.width / 2, y);
+  });
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  const step = isMobile ? 3 : 4;
+  for (let y = 0; y < canvas.height; y += step) {
+    for (let x = 0; x < canvas.width; x += step) {
+      const index = (y * canvas.width + x) * 4;
+      const alpha = imageData[index + 3];
+      if (alpha > 128) {
+        const color = getColor(x, y);
+        particles.push(new Particle(x, y, x, y, color));
+      }
+    }
+  }
+}
+function getColor(x, y) {
+  for (let i = 0; i < letterBoxes.length; i++) {
+    const box = letterBoxes[i];
+    if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+      const middle = (box.top + box.bottom) / 2;
+      return y < middle
+        ? (i % 2 === 0 ? "#1A73E8" : "#E0FD2C")
+        : (i % 2 === 0 ? "#E0FD2C" : "#1A73E8");
+    }
+  }
+  return "#091405";
+}
+class Particle {
+  constructor(x, y, origX, origY, hoverColor) {
+    this.x = x;
+    this.y = y;
+    this.origX = origX;
+    this.origY = origY;
+    this.radius = isMobile ? 1.2 : 1.5; 
+    this.baseColor = "#091405";
+    this.hoverColor = hoverColor;
+    this.color = this.baseColor;
+    this.friction = 0.88;
+    this.vx = 0;
+    this.vy = 0;
+  }
+  draw() {
+    ctx.beginPath();
+    ctx.fillStyle = this.color;
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  update() {
+    if (mouse.x !== null && mouse.y !== null) {
+      const dx = this.x - mouse.x;
+      const dy = this.y - mouse.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const force = Math.max(hoverRadius - dist, 0);
+      const speedFactor = isHovering && dist < hoverRadius ? 0.008 : 0.02;
+      this.color = isHovering && dist < hoverRadius ? this.hoverColor : this.baseColor;
+      if (dist < hoverRadius) {
+        const angle = Math.atan2(dy, dx);
+        this.vx += (Math.cos(angle) * force) / 6;
+        this.vy += (Math.sin(angle) * force) / 6;
+      }
+    }
+    this.vx += (this.origX - this.x) * 0.02;
+    this.vy += (this.origY - this.y) * 0.02;
+    this.vx *= this.friction;
+    this.vy *= this.friction;
+    this.x += this.vx;
+    this.y += this.vy;
+    this.draw();
+  }
+}
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let p of particles) {
+    p.update();
+  }
+  requestAnimationFrame(animate);
+}
+document.fonts.ready.then(() => {
+  drawTextAndPrepareParticles();
+  animate();
+});
+function showOrb(x, y) {
+  orb.style.animation = "none";
+  orb.offsetHeight;
+  orb.style.top = `${y}px`;
+  orb.style.left = `${x}px`;
+  orb.style.animation = "floatUp 2.5s ease-out forwards";
+  orb.style.opacity = 1;
+}
+canvas.addEventListener("mousemove", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+  isHovering = true;
+  showOrb(e.clientX, e.clientY);
+});
+canvas.addEventListener("mouseleave", () => {
+  mouse.x = null;
+  mouse.y = null;
+  isHovering = false;
+  orb.style.opacity = 0;
+  clearInterval(msgInterval);
+  hoverMsg.style.opacity = 0;
+});
+canvas.addEventListener("mouseenter", () => {
+  clearInterval(msgInterval);
+  msgInterval = setInterval(() => {
+    hoverMsg.style.opacity = 1;
+    setTimeout(() => {
+      hoverMsg.style.opacity = 0;
+    }, 1000);
+  }, 5000);
+});
+canvas.addEventListener("click", () => {
+  window.location.href = "https://graphosiith.com";
+});
+canvas.addEventListener("touchmove", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  mouse.x = touch.clientX - rect.left;
+  mouse.y = touch.clientY - rect.top;
+  isHovering = true;
+  showOrb(touch.clientX, touch.clientY);
+});
+canvas.addEventListener("touchend", () => {
+  mouse.x = null;
+  mouse.y = null;
+  isHovering = false;
+  orb.style.opacity = 0;
+});
+</script>
+</body>
+</html>
