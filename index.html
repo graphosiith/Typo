@@ -14,6 +14,7 @@
       background-color: white;
       font-family: 'Space Grotesk', sans-serif;
     }
+
     canvas {
       display: block;
       position: absolute;
@@ -22,6 +23,7 @@
       transform: translate(-50%, -50%);
       cursor: pointer;
     }
+
     #link {
       position: absolute;
       bottom: 10px;
@@ -33,6 +35,7 @@
       color: #091405;
       font-family: "Space Grotesk", sans-serif;
     }
+
     #orb {
       position: absolute;
       width: 20px;
@@ -47,6 +50,7 @@
       pointer-events: none;
       animation: floatUp 2.5s ease-out forwards;
     }
+
     @keyframes floatUp {
       0% {
         transform: translate(-50%, -50%) scale(0.5);
@@ -60,6 +64,7 @@
         opacity: 0;
       }
     }
+
     #hoverMsg {
       position: absolute;
       bottom: 60px;
@@ -78,37 +83,46 @@
   </style>
 </head>
 <body>
+
 <canvas id="canvas"></canvas>
 <a id="link" href="https://graphosiith.com" target="_self">Graphosiith.com</a>
 <div id="orb"></div>
 <div id="hoverMsg">Click to explore</div>
+
 <script>
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 ctx.imageSmoothingEnabled = true;
 const orb = document.getElementById("orb");
 const hoverMsg = document.getElementById("hoverMsg");
+
 let particles = [];
 let letterBoxes = [];
 let mouse = { x: null, y: null };
 let isHovering = false;
 let msgInterval;
+
 const hoverRadius = 100;
 const isMobile = window.innerWidth <= 768;
 canvas.width = window.innerWidth;
 canvas.height = isMobile ? 400 : 500;
+
 const fontSize = isMobile ? 60 : 90;
 const lines = isMobile ? ["GRAPHOS", "STUDIO"] : ["GRAPHOS STUDIO"];
 const lineGap = fontSize * 1.4;
+
 ctx.font = `bold ${fontSize}px 'Space Grotesk'`;
 ctx.textAlign = "center";
 ctx.textBaseline = "middle";
 ctx.fillStyle = "#091405";
+
 function drawTextAndPrepareParticles() {
   letterBoxes = [];
   particles = [];
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
   const startY = canvas.height / 2 - ((lines.length - 1) * lineGap) / 2;
+
   lines.forEach((line, lineIndex) => {
     const y = startY + lineIndex * lineGap;
     let startX = canvas.width / 2 - ctx.measureText(line).width / 2;
@@ -126,8 +140,10 @@ function drawTextAndPrepareParticles() {
     }
     ctx.fillText(line, canvas.width / 2, y);
   });
+
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   const step = isMobile ? 3 : 4;
+
   for (let y = 0; y < canvas.height; y += step) {
     for (let x = 0; x < canvas.width; x += step) {
       const index = (y * canvas.width + x) * 4;
@@ -138,7 +154,39 @@ function drawTextAndPrepareParticles() {
       }
     }
   }
+  copyParticlesBetweenSameLetters('S');
+copyParticlesBetweenSameLetters('O');
+
 }
+function copyParticlesBetweenSameLetters(letter) {
+  const boxes = letterBoxes.filter(box => box.char === letter);
+  if (boxes.length < 2) return;
+
+  const [box1, box2] = boxes;
+  const copied = [];
+  for (let p of particles) {
+    if (p.origX >= box1.left && p.origX <= box1.right &&
+        p.origY >= box1.top && p.origY <= box1.bottom) {
+      copied.push(p);
+    }
+  }
+  particles = particles.filter(p => !(p.origX >= box2.left && p.origX <= box2.right &&
+                                      p.origY >= box2.top && p.origY <= box2.bottom));
+
+  const dx = box2.left - box1.left;
+  const dy = box2.top - box1.top;
+
+  for (let p of copied) {
+    particles.push(new Particle(
+      p.x + dx,
+      p.y + dy,
+      p.origX + dx,
+      p.origY + dy,
+      p.hoverColor
+    ));
+  }
+}
+
 function getColor(x, y) {
   for (let i = 0; i < letterBoxes.length; i++) {
     const box = letterBoxes[i];
@@ -151,6 +199,7 @@ function getColor(x, y) {
   }
   return "#091405";
 }
+
 class Particle {
   constructor(x, y, origX, origY, hoverColor) {
     this.x = x;
@@ -165,12 +214,14 @@ class Particle {
     this.vx = 0;
     this.vy = 0;
   }
+
   draw() {
     ctx.beginPath();
     ctx.fillStyle = this.color;
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
   }
+
   update() {
     if (mouse.x !== null && mouse.y !== null) {
       const dx = this.x - mouse.x;
@@ -178,22 +229,27 @@ class Particle {
       const dist = Math.sqrt(dx * dx + dy * dy);
       const force = Math.max(hoverRadius - dist, 0);
       const speedFactor = isHovering && dist < hoverRadius ? 0.008 : 0.02;
+
       this.color = isHovering && dist < hoverRadius ? this.hoverColor : this.baseColor;
+
       if (dist < hoverRadius) {
         const angle = Math.atan2(dy, dx);
         this.vx += (Math.cos(angle) * force) / 6;
         this.vy += (Math.sin(angle) * force) / 6;
       }
     }
+
     this.vx += (this.origX - this.x) * 0.02;
     this.vy += (this.origY - this.y) * 0.02;
     this.vx *= this.friction;
     this.vy *= this.friction;
     this.x += this.vx;
     this.y += this.vy;
+
     this.draw();
   }
 }
+
 function animate() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let p of particles) {
@@ -201,10 +257,12 @@ function animate() {
   }
   requestAnimationFrame(animate);
 }
+
 document.fonts.ready.then(() => {
   drawTextAndPrepareParticles();
   animate();
 });
+
 function showOrb(x, y) {
   orb.style.animation = "none";
   orb.offsetHeight;
@@ -213,6 +271,7 @@ function showOrb(x, y) {
   orb.style.animation = "floatUp 2.5s ease-out forwards";
   orb.style.opacity = 1;
 }
+
 canvas.addEventListener("mousemove", (e) => {
   const rect = canvas.getBoundingClientRect();
   mouse.x = e.clientX - rect.left;
@@ -220,6 +279,7 @@ canvas.addEventListener("mousemove", (e) => {
   isHovering = true;
   showOrb(e.clientX, e.clientY);
 });
+
 canvas.addEventListener("mouseleave", () => {
   mouse.x = null;
   mouse.y = null;
@@ -228,6 +288,7 @@ canvas.addEventListener("mouseleave", () => {
   clearInterval(msgInterval);
   hoverMsg.style.opacity = 0;
 });
+
 canvas.addEventListener("mouseenter", () => {
   clearInterval(msgInterval);
   msgInterval = setInterval(() => {
@@ -237,9 +298,12 @@ canvas.addEventListener("mouseenter", () => {
     }, 1000);
   }, 5000);
 });
+
 canvas.addEventListener("click", () => {
   window.location.href = "https://graphosiith.com";
 });
+
+
 canvas.addEventListener("touchmove", (e) => {
   const rect = canvas.getBoundingClientRect();
   const touch = e.touches[0];
@@ -248,6 +312,7 @@ canvas.addEventListener("touchmove", (e) => {
   isHovering = true;
   showOrb(touch.clientX, touch.clientY);
 });
+
 canvas.addEventListener("touchend", () => {
   mouse.x = null;
   mouse.y = null;
